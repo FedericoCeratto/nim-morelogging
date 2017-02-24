@@ -1,0 +1,22 @@
+dist: trusty
+sudo: false
+group: beta
+language: c
+os:
+  - osx
+
+compiler:
+  - gcc
+
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install nim ; fi
+
+script:
+  - nimble install zip -y
+  - nim c -p:. tests/test_morelogging.nim
+  - ./tests/test_morelogging
+
+branches:
+  except:
+    - gh-pages

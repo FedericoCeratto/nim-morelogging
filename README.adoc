@@ -1,0 +1,47 @@
+===== Morelogging
+
+A set of logging utilities for Nim.
+
+CAUTION: The library is in alpha stage.
+
+.Features:
+[none]
+- [x] File rotation
+- [x] Compression
+- [x] Templated log file name
+- [x] Templated log messages
+- [ ] Threaded log buffering
+- [x] Async log buffering
+- [x] Logging, file rotation and compression do not block the caller
+- [ ] Do not crash the application on write failure (e.g. broken or full disk, permission errors) - switch to logging to stderr
+- [x] Sensible defaults: log to "<appname>.<date>.log", daily log rotation
+- [ ] Rotate logfile on SIGHUP signal
+- [ ] Logging hierarchy
+- [ ] Log to systemd
+- [ ] Structured logging and optional fields
+- [x] Support Linux
+- [ ] Support OSX
+- [ ] Support Windows
+
+.Installation
+[source,bash]
+----
+$ # install Nim using APT or from the upstream website
+$ sudo apt-get install nim
+$ # install nimble and then:
+$ nimble install morelogging
+----
+
+.Usage
+[source,nim]
+----
+import morelogging as log
+
+let log = newAsyncFileLogger()
+log.debug("debug")
+log.info("info")
+log.warn("warn")
+log.error("error")
+log.fatal("fatal")
+----
+
