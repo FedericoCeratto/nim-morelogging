@@ -146,44 +146,58 @@ suite "functional tests - async":
   test "rotation":
 
     render_code("tmpdir/tmp.nim"):
+      # align to 500ms inside a second
+      let delta = epochTime() - epochTime().int.float
+      var sleeptime_ms = int((1.5 - delta) * 1000) mod 1000
+      os.sleep(sleeptime_ms)
+
       let log = newAsyncRotatingFileLogger(
         compress = false,
         filename_tpl = "tmpdir/test.log",
         rotateInterval="1s",
         writeout_interval_ms=100
       )
-      log.error("first file")
-      waitFor sleepAsync(1200)
-      log.error("second file")
-      waitFor sleepAsync(150)
+      log.error("log.2 file")
+      # Wait for 1s to allow rotation
+      waitFor sleepAsync(1000)
+      log.error("log.1 file")
+      waitFor sleepAsync(1000)
 
     cleanup_compile_and_run()
     let l = "tmpdir/test.log".readFile().splitLines()
     check fileExists("tmpdir/test.log")
     check fileExists("tmpdir/test.log.1")
-    check "tmpdir/test.log.1".readFile().endswith("first file\n")
-    check "tmpdir/test.log".readFile().endswith("second file\n")
 
+    check "tmpdir/test.log.2".readFile().endswith("log.2 file\n")
+    check "tmpdir/test.log.1".readFile().endswith("log.1 file\n")
+    check "tmpdir/test.log".readFile() == ""
 
   test "rotation and compression":
 
     render_code("tmpdir/tmp.nim"):
+      # align to 500ms inside a second
+      let delta = epochTime() - epochTime().int.float
+      var sleeptime_ms = int((1.5 - delta) * 1000) mod 1000
+      os.sleep(sleeptime_ms)
+
       let log = newAsyncRotatingFileLogger(
         compress = true,
         filename_tpl = "tmpdir/test.log",
+        fmtStr = "$levelname ",
         rotateInterval="1s",
         writeout_interval_ms=100
       )
       log.error("first file")
-      waitFor sleepAsync(1100)
+      waitFor sleepAsync(1000)
       log.error("second file")
-      waitFor sleepAsync(1100)
+      waitFor sleepAsync(1000)
       log.error("third file")
-      waitFor sleepAsync(110)
+      waitFor sleepAsync(1000)
 
     cleanup_compile_and_run()
     let l = "tmpdir/test.log".readFile().splitLines()
-    check fileExists("tmpdir/test.log")
-    check fileExists("tmpdir/test.log.gz") # FIXME
-    check fileExists("tmpdir/test.log.1.gz")
-    check "tmpdir/test.log".readFile().endswith("third file\n")
+    check getFileSize("tmpdir/test.log") == 0
+    check getFileSize("tmpdir/test.log.1.gz") > 0
+    check getFileSize("tmpdir/test.log.2.gz") > 0
+    # FIXME log.gz
+    check getFileSize("tmpdir/test.log.gz") > 0

@@ -4,6 +4,10 @@
 # (c) 2017 Federico Ceratto <federico.ceratto@gmail.com>
 # Released under the LGPLv3 license, see LICENSE file
 
+## Messages with level below level_threshold are ignored.
+## If buffer_size is positive, messages are buffered internally up to writeout_interval_ms
+## Messages with level >= flush_threshold are flushed out immediately.
+
 from logging import addHandler, Level, LevelNames, Logger, defaultFilename, defaultFmtStr
 from logging import info, debug
 from posix import gethostname
@@ -20,7 +24,7 @@ type
   FileLogger* = ref object of Logger
     application_name*, application_dir*: string
     filemode: FileMode
-    flushThreshold: Level
+    flush_threshold: Level
     # log_filename is generated from log_filename_tpl
     log_filename, log_filename_tpl*: string
     writeout_interval_ms*: int
@@ -70,12 +74,16 @@ proc format_msg(l: FileLogger, frmt: string, level: Level, args: varargs[string,
     result.add(arg)
 
 
-proc get_posix_hostname(): string =
+proc get_hostname(): string =
   ## Get hostname
-  const size = 64
-  var s = cstring(newString(size))
-  discard s.getHostname(size)
-  return $s
+  when defined(Posix):
+    const size = 64
+    var s = cstring(newString(size))
+    discard s.getHostname(size)
+    return $s
+  else:
+    # FIXME
+    return "unknown"
 
 
 proc generate_log_file_name(tpl: string, current_time: Time): string =
@@ -100,7 +108,7 @@ proc generate_log_file_name(tpl: string, current_time: Time): string =
     .replace("$hh", ts.format("HH"))
     .replace("$mm", ts.format("mm"))
     .replace("$ss", ts.format("ss"))
-    .replace("$hostname", get_posix_hostname())
+    .replace("$hostname", get_hostname())
     .replace("$appname", appname)
 
 
@@ -113,10 +121,9 @@ type
 
 proc flush_buffer(self: AsyncFileLogger) =
   ## Write log messages
-  # TODO: optimize
   if self.buf.len != 0:
     self.f.write(self.buf)
-    self.buf = ""
+    self.buf.setLen(0)
 
 proc run_writeout_worker(self: AsyncFileLogger) {.async.} =
   ## Write log messages
@@ -134,15 +141,12 @@ proc newAsyncFileLogger*(
     buffer_size = 1_048_576
   ): AsyncFileLogger =
   ## Creates a new file logger.
-  ## Messages with level below levelThreshold are ignored.
-  ## If buffer_size is positive, messages are buffered internally up to writeout_interval_ms
-  ## Messages with level >= flushThreshold are flushed out immediately.
   new(result)
   assert writeout_interval_ms > 0
   assert buffer_size >= 0
-  result.flushThreshold = flushThreshold
+  result.flush_threshold = flush_threshold
   result.fmtStr = fmtStr
-  result.levelThreshold = levelThreshold
+  result.level_threshold = level_threshold
   if buffer_size != 0:
     result.buf = newStringOfCap(buffer_size)
   result.buffering_enabled = (buffer_size != 0)
@@ -157,13 +161,15 @@ proc newAsyncFileLogger*(
     let writeout_worker = result.run_writeout_worker()
 
 
-method log(self: AsyncFileLogger, level: Level, args: varargs[string, `$`]) {.
+proc log(self: AsyncFileLogger, level: Level, args: varargs[string, `$`]) {.
             raises: [Exception],
             tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
-    if level >= self.levelThreshold:
+    if level >= self.level_threshold:
       let msg = self.format_msg(self.fmtStr, level, args)
       if self.buffering_enabled:
         self.buf.add (msg & "\n")
+        if level >= self.flush_threshold:
+          self.flush_buffer()
       else:
         self.f.write(msg & "\n")
 
@@ -305,10 +311,9 @@ proc rotate(self: AsyncRotatingFileLogger, now: Time) =
 
 proc flush_buffer(self: AsyncRotatingFileLogger) =
   ## Write log messages
-  # TODO: optimize
   if self.buf.len != 0:
     self.f.write(self.buf)
-    self.buf = ""
+    self.buf.setLen(0)
 
 proc run_writeout_worker(self: AsyncRotatingFileLogger) {.async.} =
   ## Perform log rotation and write out log messages
@@ -333,9 +338,6 @@ proc newAsyncRotatingFileLogger*(
     compress = false,
   ): AsyncRotatingFileLogger =
   ## Creates a new rotating file logger.
-  ## Messages with level below levelThreshold are ignored.
-  ## If buffer_size is positive, messages are buffered internally up to writeout_interval_ms
-  ## Messages with level >= flushThreshold are flushed out immediately.
   new(result)
   assert writeout_interval_ms > 0
   if buffer_size != 0:
@@ -343,9 +345,9 @@ proc newAsyncRotatingFileLogger*(
   result.buffering_enabled = (buffer_size != 0)
   result.compress = compress
   result.filemode = mode
-  result.flushThreshold = flushThreshold
+  result.flush_threshold = flush_threshold
   result.fmtStr = fmtStr
-  result.levelThreshold = levelThreshold
+  result.level_threshold = level_threshold
   result.log_filename_tpl = filename_tpl
   result.rotateInterval = rotateInterval
   result.writeout_interval_ms = writeout_interval_ms

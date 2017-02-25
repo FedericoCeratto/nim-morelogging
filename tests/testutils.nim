@@ -76,6 +76,7 @@ template render_code*(fname: string, code: expr): stmt =
   import asyncdispatch
   from strutils import align
   from times import epochTime
+  from os import sleep
   import morelogging
   """
   let
