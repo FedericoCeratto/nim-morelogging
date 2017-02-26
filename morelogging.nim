@@ -78,11 +78,13 @@ proc get_hostname(): string =
   ## Get hostname
   when defined(Posix):
     const size = 64
-    var s = cstring(newString(size))
-    discard s.getHostname(size)
-    return $s
+    var hostname = cstring(newString(size))
+    let success = getHostname(hostname, size)
+    if success != 0.cint or hostname == nil:
+      raiseOSError(osLastError())
+    return $hostname
   else:
-    # FIXME
+    # FIXME https://github.com/nim-lang/Nim/pull/5443
     return "unknown"
 
 

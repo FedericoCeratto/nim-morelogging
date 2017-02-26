@@ -4,6 +4,9 @@ A set of logging utilities for Nim.
 
 CAUTION: The library is in alpha stage.
 
+image:https://api.travis-ci.org/FedericoCeratto/nim-morelogging.svg?branch=master[TravisCI]
+image:https://ci.appveyor.com/api/projects/status/github/FedericoCeratto/nim-morelogging?svg=true[Appveyor]
+
 .Features:
 [none]
 - [x] File rotation
