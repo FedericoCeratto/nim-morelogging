@@ -15,7 +15,11 @@ before_install:
 script:
   - nimble install zip -y
   - nim c -p:. tests/test_morelogging.nim
+  - nim c -p:. tests/test_threaded.nim
+  - nim c -p:. tests/test_threaded_performance.nim
   - ./tests/test_morelogging
+  - ./tests/test_threaded
+  - ./tests/test_threaded_performance
 
 branches:
   except:

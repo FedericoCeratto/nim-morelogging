@@ -16,9 +16,6 @@ import asyncdispatch,
   unittest
 
 import testutils
-import morelogging as ml
-
-from logging import addHandler, info, debug
 
 
 suite "functional tests - async":
@@ -35,6 +32,7 @@ suite "functional tests - async":
       )
       log1.debug("debug")
       log1.info("info")
+      #TODO: close
 
     cleanup_compile_and_run()
     let l = "tmpdir/test.log".readFile().splitLines()

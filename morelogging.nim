@@ -28,7 +28,7 @@ type
     # log_filename is generated from log_filename_tpl
     log_filename, log_filename_tpl*: string
     writeout_interval_ms*: int
-    buffering_enabled: bool
+    buffer_size: int
 
 # Logging utility functions
 
@@ -113,6 +113,7 @@ proc generate_log_file_name(tpl: string, current_time: Time): string =
     .replace("$hostname", get_hostname())
     .replace("$appname", appname)
 
+#FIXME: flush immediately if the buffer is filling up
 
 # AsyncFileLogger
 
@@ -142,7 +143,7 @@ proc newAsyncFileLogger*(
     writeout_interval_ms = 100,
     buffer_size = 1_048_576
   ): AsyncFileLogger =
-  ## Creates a new file logger.
+  ## Create a file logger.
   new(result)
   assert writeout_interval_ms > 0
   assert buffer_size >= 0
@@ -151,7 +152,7 @@ proc newAsyncFileLogger*(
   result.level_threshold = level_threshold
   if buffer_size != 0:
     result.buf = newStringOfCap(buffer_size)
-  result.buffering_enabled = (buffer_size != 0)
+  result.buffer_size = buffer_size
   result.writeout_interval_ms = writeout_interval_ms
   (result.application_dir, result.application_name) = os.getAppFilename().splitFile()
 
@@ -159,21 +160,27 @@ proc newAsyncFileLogger*(
   result.log_filename = generate_log_file_name(result.log_filename_tpl, getTime())
   result.f = open(result.log_filename, mode, bufSize=0)
 
-  if result.buffering_enabled:
+  if result.buffer_size != 0:
     let writeout_worker = result.run_writeout_worker()
-
 
 proc log(self: AsyncFileLogger, level: Level, args: varargs[string, `$`]) {.
             raises: [Exception],
             tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
-    if level >= self.level_threshold:
-      let msg = self.format_msg(self.fmtStr, level, args)
-      if self.buffering_enabled:
-        self.buf.add (msg & "\n")
-        if level >= self.flush_threshold:
-          self.flush_buffer()
-      else:
-        self.f.write(msg & "\n")
+  ## Format and write log message out if the level is above theshold,
+  ## or buffering is not enabled, otherwise buffer it.
+  ## Flush out the buffer if it's getting full
+  if level >= self.level_threshold:
+    let msg = self.format_msg(self.fmtStr, level, args)
+    if self.buffer_size != 0:
+      if self.buf.len + msg.len + 1 >= self.buffer_size:
+        self.flush_buffer()
+
+      self.buf.add msg
+      self.buf.add "\n"
+      if level >= self.flush_threshold:
+        self.flush_buffer()
+    else:
+      self.f.write(msg & "\n")
 
 method fatal*(self: AsyncFileLogger, args: varargs[string, `$`])
     {.tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
@@ -249,24 +256,29 @@ proc compress_file(src_fname: string) =
   let t0 = epochTime()
   let compressed_fname = "$#.gz" % src_fname
   recursive_rename(compressed_fname)
-  let src = memfiles.open(src_fname)
+  var src: MemFile
+  try:
+    src = memfiles.open(src_fname)
+  except:
+    echo "failed to memfiles.open $# $#" % [src_fname, getCurrentExceptionMsg()]
+    return
+
   let dst = gzopen(compressed_fname, "w")
   discard zlib.gzwrite(dst, src.mem, src.size)
   discard dst.gzclose()
   removeFile(src_fname)
-  let ms = (epochTime() - t0) * 1000
 
-proc pick_rotation_time(now: Time, rotateInterval: string): TimeInfo =
+proc pick_rotation_time(now: Time, rotate_interval: string): TimeInfo =
   ## Pick a time for the next file rotation
   var
     selector: char
     timeval: int
 
   try:
-    selector = rotateInterval[rotateInterval.len - 1]
-    timeval = rotateInterval[0..<rotateInterval.len-1].parseInt
+    selector = rotate_interval[rotate_interval.len - 1]
+    timeval = rotate_interval[0..<rotate_interval.len-1].parseInt
   except:
-    raise newException(ValueError, "rotateInterval must be <numbers>[dhms]")
+    raise newException(ValueError, "rotate_interval must be <numbers>[dhms]")
 
   var rotation_time = now.getGMTime()
   case selector
@@ -285,7 +297,7 @@ proc pick_rotation_time(now: Time, rotateInterval: string): TimeInfo =
   of 's':
     rotation_time.second += (timeval - rotation_time.second mod timeval)
   else:
-    raise newException(ValueError, "rotateInterval must be <numbers>[Mdhms]")
+    raise newException(ValueError, "rotate_interval must be <numbers>[Mdhms]")
 
   return rotation_time
 
@@ -296,11 +308,11 @@ type
   AsyncRotatingFileLogger* = ref object of AsyncFileLogger
     compress: bool
     next_rotation_time: TimeInfo
-    rotateInterval: string
+    rotate_interval: string
 
 proc rotate(self: AsyncRotatingFileLogger, now: Time) =
   ## Rotate logfile, compressing it if needed
-  self.next_rotation_time = pick_rotation_time(now, self.rotateInterval)
+  self.next_rotation_time = pick_rotation_time(now, self.rotate_interval)
   if self.f != nil:
     self.f.close()
 
@@ -324,7 +336,7 @@ proc run_writeout_worker(self: AsyncRotatingFileLogger) {.async.} =
     if self.next_rotation_time.timeInfoToTime() <= now:
       self.rotate(now)
 
-    if self.buffering_enabled:
+    if self.buffer_size != 0:
       self.flush_buffer()
     await sleepAsync(self.writeout_interval_ms)
 
@@ -336,24 +348,204 @@ proc newAsyncRotatingFileLogger*(
     mode: FileMode = fmAppend,
     writeout_interval_ms = 100,
     buffer_size = 1_048_576,
-    rotateInterval = "1d",
+    rotate_interval = "1d",
     compress = false,
   ): AsyncRotatingFileLogger =
-  ## Creates a new rotating file logger.
+  ## Create a rotating file logger.
   new(result)
   assert writeout_interval_ms > 0
   if buffer_size != 0:
     result.buf = newStringOfCap(buffer_size)
-  result.buffering_enabled = (buffer_size != 0)
+  result.buffer_size = buffer_size
   result.compress = compress
   result.filemode = mode
   result.flush_threshold = flush_threshold
   result.fmtStr = fmtStr
   result.level_threshold = level_threshold
   result.log_filename_tpl = filename_tpl
-  result.rotateInterval = rotateInterval
+  result.rotate_interval = rotate_interval
   result.writeout_interval_ms = writeout_interval_ms
   (result.application_dir, result.application_name) = os.getAppFilename().splitFile()
   # Perform an initial rotation to open a file
   result.rotate(getTime())
   let writeout_worker = result.run_writeout_worker()
+
+
+# Threaded Loggers
+
+when compileOption("threads"):
+
+  import threadpool
+
+  const thread_write_bufsize = 1_048_576
+
+  type
+    PChan = ptr Channel[string]
+    ThreadFileLogger* = ref object of FileLogger
+      f: File
+      chan: Channel[string]
+      buf: string
+      running: bool
+
+    ThreadRotatingFileLogger* = ref object of ThreadFileLogger
+      compress: bool
+      next_rotation_time: TimeInfo
+      rotate_interval: string
+
+  proc do_flush_buffer_cycle(self: ThreadFileLogger, n: int, pchan: PChan): int =
+    ## Pop log messages from channel to a local buffer and then write it to disk
+    ## Try to process up to `n` messages. Return earlier if there's any read
+    ## error or we run out of buffer space.
+    # Do not use self.chan in this thread.
+    for cnt in 1..n:
+      let msg = pchan[].recv()
+      if self.buf.len + msg.len + 1 >= thread_write_bufsize:
+        # Running out of buffer space
+        self.f.write(self.buf)
+        let write_size = self.buf.len
+        self.buf.setLen(0)
+        self.buf.add msg
+        self.buf.add "\n"
+        return write_size
+
+      self.buf.add msg
+      self.buf.add "\n"
+
+    self.f.write(self.buf)
+    let write_size = self.buf.len
+    self.buf.setLen(0)
+    return write_size
+
+  proc flush_buffer(self: ThreadFileLogger, pchan: PChan) =
+    ## Flush channel to file.
+    # Iterate until the channel is empty
+    # Peek the number of msgs it the channel.
+    # This is the only proc that pops msgs so it is safe.
+    while true:
+      let n = pchan[].peek()
+      if n == 0:
+        break
+
+      discard self.do_flush_buffer_cycle(n, pchan)
+
+  proc run_writeout_worker(self: ThreadFileLogger, pchan: PChan) {.thread.} =
+    ## Write out log messages
+    # Do not use self.chan in this thread.
+    self.f = open(self.log_filename, self.filemode, bufSize=0)
+    while true:
+      self.flush_buffer(pchan)
+      os.sleep(self.writeout_interval_ms)
+
+  proc log*(self: ThreadFileLogger, level: Level, args: varargs[string, `$`])
+      {.raises: [Exception], tags: [RootEffect, TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    if level >= self.levelThreshold:
+      let msg = self.format_msg(self.fmtStr, level, args)
+      self.chan.send(msg)
+
+  method fatal*(self: ThreadFileLogger, args: varargs[string, `$`])
+      {.tags: [RootEffect, TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    self.log(lvlFatal, args)
+
+  method error*(self: ThreadFileLogger, args: varargs[string, `$`])
+      {.tags: [RootEffect, TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    self.log(lvlError, args)
+
+  method warn*(self: ThreadFileLogger, args: varargs[string, `$`])
+      {.tags: [RootEffect, TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    self.log(lvlWarn, args)
+
+  method notice*(self: ThreadFileLogger, args: varargs[string, `$`])
+      {.tags: [RootEffect, TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    self.log(lvlNotice, args)
+
+  method info*(self: ThreadFileLogger, args: varargs[string, `$`])
+      {.tags: [RootEffect, TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    self.log(lvlInfo, args)
+
+  method debug*(self: ThreadFileLogger, args: varargs[string, `$`])
+      {.tags: [RootEffect, TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    self.log(lvlDebug, args)
+
+  proc close*(self: ThreadFileLogger) =
+    ## Flush buffer and stop logger
+    self.running = false
+    self.flush_buffer(addr self.chan)
+    self.chan.close()
+
+  proc newThreadFileLogger*(
+      filename_tpl = "$app.$y$MM$dd.log",
+      fmtStr = "$datetime $levelname ",
+      level_threshold = lvlAll,
+      mode: FileMode = fmAppend,
+      writeout_interval_ms = 100,
+    ): ThreadFileLogger =
+    ## Create a threaded file logger.
+    new(result)
+    assert writeout_interval_ms > 0
+    result.buf = newStringOfCap(thread_write_bufsize)
+    result.buffer_size = thread_write_bufsize
+    result.filemode = mode
+    result.fmtStr = fmtStr
+    result.level_threshold = level_threshold
+    result.log_filename_tpl = filename_tpl
+    result.log_filename = generate_log_file_name(result.log_filename_tpl,
+      getTime())
+    result.writeout_interval_ms = writeout_interval_ms
+    result.chan.open()
+    result.running = true
+    spawn result.run_writeout_worker(addr result.chan)
+
+
+  # Rotating logger
+
+  proc rotate(self: ThreadRotatingFileLogger, now: Time) =
+    ## Rotate logfile, compressing it if needed
+    self.next_rotation_time = pick_rotation_time(now, self.rotate_interval)
+    if self.f != nil:
+      self.f.close()
+
+    if self.compress and self.log_filename != nil:
+      self.log_filename.compress_file()
+
+    self.log_filename = generate_log_file_name(self.log_filename_tpl, now)
+    recursive_rename(self.log_filename)
+    self.f = open(self.log_filename, self.filemode, bufSize=0)
+
+  proc run_writeout_worker(self: ThreadRotatingFileLogger, pchan: PChan) =
+    ## Perform log rotation and write out log messages
+    while true:
+      let now = getTime()
+      if self.next_rotation_time.timeInfoToTime() <= now:
+        self.rotate(now)
+
+      if self.buffer_size != 0:
+        self.flush_buffer(pchan)
+      os.sleep(self.writeout_interval_ms)
+
+  proc newThreadRotatingFileLogger*(
+      compress = false,
+      filename_tpl = "$app.$y$MM$dd.log",
+      fmtStr = "$datetime $levelname ",
+      level_threshold = lvlAll,
+      mode: FileMode = fmAppend,
+      rotate_interval = "1d",
+      writeout_interval_ms = 100,
+    ): ThreadRotatingFileLogger =
+    ## Create a threaded rotating file logger.
+    new(result)
+    result.buf = newStringOfCap(thread_write_bufsize)
+    result.buffer_size = thread_write_bufsize
+    result.compress = compress
+    result.filemode = mode
+    result.fmtStr = fmtStr
+    result.level_threshold = level_threshold
+    result.log_filename_tpl = filename_tpl
+    result.log_filename = generate_log_file_name(result.log_filename_tpl,
+      getTime())
+    result.rotate_interval = rotate_interval
+    result.f = open(result.log_filename, result.filemode, bufSize=0)
+    result.writeout_interval_ms = writeout_interval_ms
+    result.chan.open()
+    # Perform an initial rotation to open a file
+    result.rotate(getTime())
+    spawn result.run_writeout_worker(addr result.chan)

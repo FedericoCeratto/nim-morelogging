@@ -112,3 +112,18 @@ proc cleanup_compile_and_run*(compile_opts="") =
   echo "    [running]"
   doAssert execCmd("./tmpdir/tmp") == 0
 
+proc count_newlines*(fname: string): int =
+  ## Count newlines
+  const rsize = 16384
+  result = 0
+  let f = open(fname)
+  var buf = newString(rsize)
+  while true:
+    let bytes = readBuffer(f, addr buf[0], rsize)
+    buf.setLen bytes
+    result.inc buf.countLines
+    buf.setLen 0
+    if bytes < rsize:
+      break
+  f.close()
+
