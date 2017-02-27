@@ -4,8 +4,9 @@ A set of logging utilities for Nim.
 
 CAUTION: The library is in alpha stage.
 
-image:https://api.travis-ci.org/FedericoCeratto/nim-morelogging.svg?branch=master[TravisCI]
-image:https://ci.appveyor.com/api/projects/status/github/FedericoCeratto/nim-morelogging?svg=true[Appveyor]
+image:https://img.shields.io/badge/status-alpha-orange.svg[badge]
+image:https://api.travis-ci.org/FedericoCeratto/nim-morelogging.svg?branch=master[TravisCI, link="https://travis-ci.org/FedericoCeratto/nim-morelogging"]
+image:https://ci.appveyor.com/api/projects/status/github/FedericoCeratto/nim-morelogging?svg=true[Appveyor, link="https://ci.appveyor.com/project/FedericoCeratto/nim-morelogging"]
 
 .Features:
 [none]
@@ -13,7 +14,7 @@ image:https://ci.appveyor.com/api/projects/status/github/FedericoCeratto/nim-mor
 - [x] Compression
 - [x] Templated log file name
 - [x] Templated log messages
-- [ ] Threaded log buffering
+- [x] Threaded log buffering
 - [x] Async log buffering
 - [x] Logging, file rotation and compression do not block the caller
 - [ ] Do not crash the application on write failure (e.g. broken or full disk, permission errors) - switch to logging to stderr
@@ -23,8 +24,8 @@ image:https://ci.appveyor.com/api/projects/status/github/FedericoCeratto/nim-mor
 - [ ] Log to systemd
 - [ ] Structured logging and optional fields
 - [x] Support Linux
-- [ ] Support OSX
-- [ ] Support Windows
+- [x] Support OSX
+- [x] Support Windows
 
 .Installation
 [source,bash]
