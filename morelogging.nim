@@ -21,10 +21,12 @@ import asyncdispatch,
 # Base class
 
 type
-  FileLogger* = ref object of Logger
+  AugmentedLogger* = ref object of Logger
     application_name*, application_dir*: string
-    filemode: FileMode
     flush_threshold: Level
+
+  FileLogger* = ref object of AugmentedLogger
+    filemode: FileMode
     # log_filename is generated from log_filename_tpl
     log_filename, log_filename_tpl*: string
     writeout_interval_ms*: int
@@ -32,7 +34,7 @@ type
 
 # Logging utility functions
 
-proc format_msg(l: FileLogger, frmt: string, level: Level, args: varargs[string, `$`]): string =
+proc format_msg(self: AugmentedLogger, frmt: string, level: Level, args: varargs[string, `$`]): string =
   ## Format log message
   ## The following formatters are supported:
   ##
@@ -65,8 +67,8 @@ proc format_msg(l: FileLogger, frmt: string, level: Level, args: varargs[string,
       of "date": result.add(getDateStr())
       of "time": result.add(getClockStr())
       of "datetime": result.add(getDateStr() & "T" & getClockStr())
-      of "appdir": result.add(l.application_dir)
-      of "appname": result.add(l.application_name)
+      of "appdir": result.add(self.application_dir)
+      of "appname": result.add(self.application_name)
       of "levelid": result.add(LevelNames[level][0])
       of "levelname": result.add(LevelNames[level])
       else: discard
@@ -549,3 +551,117 @@ when compileOption("threads"):
     # Perform an initial rotation to open a file
     result.rotate(getTime())
     spawn result.run_writeout_worker(addr result.chan)
+
+
+when defined(Posix) and defined(systemd):
+
+  import tables
+  from system import getFrame
+
+  {.hint: "Systemd Journald enabled".}
+  # Use systemd libraries
+  {.passL: "-lsystemd".}
+  # Add a define before including sd-journal.h
+  {.emit: """/*INCLUDESECTION*/
+#define SD_JOURNAL_SUPPRESS_LOCATION""".}
+
+  type
+    JournaldLogger* = ref object of AugmentedLogger
+    LogEntryItems = Table[string, string]
+
+  proc sd_journal_send*(format: cstring): cint {.varargs, importc, cdecl, header: "<systemd/sd-journal.h>".}
+
+  proc log_journald(msg: string, f: LogEntryItems) =
+    ## Log to journald
+    var chunks = @["MESSAGE=" & msg]
+    for k, v in f.pairs:
+      let uk = k.toUpperAscii
+      assert uk[0] != '_', "journald structured items cannot start with underscore"
+      let item = uk & "=" & v
+      chunks.add item
+
+    let frame = getFrame().prev.prev.prev
+    if not f.hasKey "CODE_FILE":
+      chunks.add "CODE_FILE=" & $frame.filename
+    if not f.hasKey "CODE_FUNC":
+      chunks.add "CODE_FUNC=" & $frame.procname
+    if not f.hasKey "CODE_LINE":
+      chunks.add "CODE_LINE=" & $frame.line
+
+    # TODO: replace with macro + template
+    var rc: cint
+    let c = chunks
+    case chunks.len
+    of 1: rc = sd_journal_send(c[0], nil)
+    of 2: rc = sd_journal_send(c[0], c[1], nil)
+    of 3: rc = sd_journal_send(c[0], c[1], c[2], nil)
+    of 4: rc = sd_journal_send(c[0], c[1], c[2], c[3], nil)
+    of 5: rc = sd_journal_send(c[0], c[1], c[2], c[3], c[4], nil)
+    of 6: rc = sd_journal_send(c[0], c[1], c[2], c[3], c[4], c[5], nil)
+    of 7: rc = sd_journal_send(c[0], c[1], c[2], c[3], c[4], c[5], c[6], nil)
+    of 8: rc = sd_journal_send(c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], nil)
+    of 9: rc = sd_journal_send(c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], nil)
+    of 10: rc = sd_journal_send(c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], nil)
+    else:
+      raise newException(Exception, "Too many arguments")
+    if rc != 0:
+      raise newException(Exception, "Failed sd_journal_send: " & $rc.int)
+
+  proc log_journald(msg: string, a: openarray[(string, string)]) =
+    ## Log to journald
+    ## Example: log_journald("hello world", {"status": "ok", "mood": "happy"})
+    log_journald(msg, a.toTable)
+
+  proc structlog*(self: JournaldLogger, level: Level, msg: string, a: openarray[(string, string)]) =
+    ## Log to journald
+    ## Example: structlog(lvlNotice, "hello world", {"status": "ok", "mood": "happy"})
+    ## See man systemd.journal-fields
+    ## Severity levels are logged as PRIORITY with values according to RFC5424
+    if level >= self.level_threshold:
+      let fmsg =
+        if self.fmtStr == "": msg
+        else:
+          self.format_msg(self.fmtStr, level, msg)
+      var t = a.toTable
+      t["priority"] = $(8 - level.int)
+      log_journald(fmsg, t)
+
+  proc log(self: JournaldLogger, level: Level, args: varargs[string, `$`]) {.
+              raises: [Exception],
+              tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    ## Format message out if the level is above theshold,
+    ## or buffering is not enabled, otherwise buffer it.
+    ## Flush out the buffer if it's getting full
+    if level >= self.level_threshold:
+      let msg = self.format_msg(self.fmtStr, level, args)
+
+  proc fatal*(self: JournaldLogger, msg: string, a: openarray[(string, string)]) =
+    self.structlog(lvlFatal, msg, a)
+
+  proc error*(self: JournaldLogger, msg: string, a: openarray[(string, string)]) =
+    self.structlog(lvlError, msg, a)
+
+  proc warn*(self: JournaldLogger, msg: string, a: openarray[(string, string)]) =
+    self.structlog(lvlWarn, msg, a)
+
+  proc notice*(self: JournaldLogger, msg: string, a: openarray[(string, string)]) =
+    self.structlog(lvlNotice, msg, a)
+
+  proc info*(self: JournaldLogger, msg: string, a: openarray[(string, string)]) =
+    self.structlog(lvlInfo, msg, a)
+
+  proc debug*(self: JournaldLogger, msg: string, a: openarray[(string, string)]) =
+    self.structlog(lvlDebug, msg, a)
+
+  proc newJournaldLogger*(
+      fmtStr = "",
+      level_threshold = lvlAll,
+    ): JournaldLogger =
+    ## Create a Journald logger.
+    new(result)
+    result.fmtStr = fmtStr
+    result.level_threshold = level_threshold
+
+  proc close*(self: JournaldLogger) =
+    ## Close JournaldLogger: do nothing, the logger will keep working after closing
+    discard

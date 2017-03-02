@@ -1,11 +1,11 @@
-===== Morelogging
+== Morelogging
 
 A set of logging utilities for Nim.
 
 CAUTION: The library is in alpha stage.
 
 image:https://img.shields.io/badge/status-alpha-orange.svg[badge]
-image:https://api.travis-ci.org/FedericoCeratto/nim-morelogging.svg?branch=master[TravisCI, link="https://travis-ci.org/FedericoCeratto/nim-morelogging"]
+image:https://circleci.com/gh/FedericoCeratto/nim-morelogging.svg?style=svg["CircleCI", link="https://circleci.com/gh/FedericoCeratto/nim-morelogging"]
 image:https://ci.appveyor.com/api/projects/status/github/FedericoCeratto/nim-morelogging?svg=true[Appveyor, link="https://ci.appveyor.com/project/FedericoCeratto/nim-morelogging"]
 
 .Features:
@@ -21,7 +21,7 @@ image:https://ci.appveyor.com/api/projects/status/github/FedericoCeratto/nim-mor
 - [x] Sensible defaults: log to "<appname>.<date>.log", daily log rotation
 - [ ] Rotate logfile on SIGHUP signal
 - [ ] Logging hierarchy
-- [ ] Log to systemd
+- [x] Log to systemd Journald. Support structured entries.
 - [ ] Structured logging and optional fields
 - [x] Support Linux
 - [x] Support OSX
@@ -47,5 +47,112 @@ log.info("info")
 log.warn("warn")
 log.error("error")
 log.fatal("fatal")
+----
+
+
+=== Log message formatting
+
+The following formatters are supported:
+
+  $date
+  $time
+  $datetime
+  $app
+  $appdir
+  $appname
+  $levelid
+  $levelname
+
+Messages with level below level_threshold are ignored.
+
+=== Async and threaded loggers
+
+If buffer_size is positive, messages are buffered internally up to writeout_interval_ms
+
+Messages with level >= flush_threshold are flushed out immediately.
+
+[source,nim]
+----
+proc newAsyncFileLogger*(
+    filename_tpl = "$app.$y$MM$dd.log",
+    flush_threshold = lvlError,
+    fmtStr = "$datetime $levelname ",
+    level_threshold = lvlAll,
+    mode: FileMode = fmAppend,
+    writeout_interval_ms = 100,
+    buffer_size = 1_048_576
+  ): AsyncFileLogger =
+
+proc newThreadFileLogger*(
+    filename_tpl = "$app.$y$MM$dd.log",
+    fmtStr = "$datetime $levelname ",
+    level_threshold = lvlAll,
+    mode: FileMode = fmAppend,
+    writeout_interval_ms = 100,
+  ): ThreadFileLogger =
+
+proc newThreadRotatingFileLogger*(
+    compress = false,
+    filename_tpl = "$app.$y$MM$dd.log",
+    fmtStr = "$datetime $levelname ",
+    level_threshold = lvlAll,
+    mode: FileMode = fmAppend,
+    rotate_interval = "1d",
+    writeout_interval_ms = 100,
+  ): ThreadRotatingFileLogger
+----
+
+==== Generating log file names dynamically
+
+Filenames are generated from filename_tpl
+Default value: "$app.$y$MM$dd.log"
+The following formatters are supported:
+
+  $y         year
+  $MM        month
+  $dd        day
+  $hh        hour
+  $mm        minute
+  $ss        second
+  $hostname  hostname
+  $appname   application name
+
+=== Systemd's Journald logger
+
+Journald supports logging user-defined key-value pairs and provides fast indexing.
+
+Enable with -d:systemd
+
+.Usage:
+[source,nim]
+----
+let log = newJournaldLogger()
+log.info("hello world", {"key_1": "value_1"})
+----
+
+Keys are converted to uppercase. They can contain underscores but not as the first character.
+
+JournaldLogger will automatically add CODE_FILE, CODE_FUNC, CODE_LINE keys to show the filename, function and line number that generated the log message.
+
+You can override them by passing the keys in uppercase with your own values.
+
+
+.Output example:
+[source,bash]
+----
+sudo journalctl -e -o json-pretty KEY_1=value_1 -n1 --no-pager
+{
+  "PRIORITY" : "5",
+  "_TRANSPORT" : "journal",
+  "_UID" : "1000",
+  "_GID" : "1000",
+  "MESSAGE" : "hello world",
+  "KEY_1" : "value_1",
+  "CODE_FUNC" : "myfunction",
+  "CODE_FILE" : "mytest.nim",
+  "CODE_LINE" : "24",
+  < other lines redacted >
+  < ... >
+}
 ----
 
