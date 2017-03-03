@@ -101,16 +101,25 @@ proc cleanup_compile_and_run*(compile_opts="") =
   ## Cleanup temp files and compile
   removeFile("tmpdir/tmp")
   delete_logs()
-  let cmd = "nim c -p:. -d:release $# ./tmpdir/tmp.nim > compile_out 2>&1" % compile_opts
-  echo "    [compiling]"
+  when defined(Posix):
+    let cmd = "nim c -p:. -d:release $# ./tmpdir/tmp.nim > compile_out 2>&1" % compile_opts
+    echo "    [compiling]"
+  else:
+    let cmd = "nim.exe c -p:. -d:release $# tmpdir/tmp.nim" % compile_opts
+    echo "    [compiling]  " & cmd
   if execCmd(cmd) != 0:
     echo "Failed to build:\n----"
-    echo "compile_out".readFile()
+    when defined(Posix):
+      echo "compile_out".readFile()
     echo "----"
     quit(1)
 
   echo "    [running]"
-  doAssert execCmd("./tmpdir/tmp") == 0
+  when defined(Posix):
+    doAssert execCmd("./tmpdir/tmp") == 0
+  else:
+    discard execCmd("dir tmpdir")
+    doAssert execCmd("tmpdir\tmp.exe") == 0
 
 proc count_newlines*(fname: string): int =
   ## Count newlines

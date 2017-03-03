@@ -26,15 +26,13 @@ install:
   - 7z x -y "%NIM_ARCHIVE%" > nul
   - cd ..
   - SET PATH=%CD%\tools_tmp\%NIM_DIR%\bin;%CD%\tools_tmp\%MINGW_DIR%\bin;%PATH%
-  - dir %CD%\tools_tmp\%MINGW_DIR%
-  - dir %CD%\tools_tmp\%MINGW_DIR%\bin
 
 build_script:
   - nimble.exe install zip -y
   - nim.exe c -p:. tests/test_morelogging.nim
 
 after_build:
-  - xcopy %CD%\tools_tmp\%MINGW_DIR%\bin\zlib1.dll .
+  - xcopy C:\MinGW\bin\zlib1.dll .
 
 test_script:
   - tests\test_morelogging
