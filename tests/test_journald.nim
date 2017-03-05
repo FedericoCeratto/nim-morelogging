@@ -23,6 +23,8 @@ suite "functional tests - journald":
 
     let msg_id = $(int(epochTime()))
     let log = newJournaldLogger()
+    log.info("simple msg")
+
     log.info("hello world", {
       "status": "ok",
       "test_number": "1",
@@ -62,7 +64,7 @@ suite "functional tests - journald":
       "topic": "morelogging_functional_test",
     })
     var j = execProcess(journalctl_call).parseJson()
-    check j["CODE_LINE"].str == "61"
+    check j["CODE_LINE"].str == "63"
     check j["CODE_FILE"].str == "test_journald.nim"
     check j["CODE_FUNC"].str == "test_journald"
 

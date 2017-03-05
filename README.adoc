@@ -23,9 +23,8 @@ image:https://ci.appveyor.com/api/projects/status/github/FedericoCeratto/nim-mor
 - [ ] Logging hierarchy
 - [x] Log to systemd Journald. Support structured entries.
 - [ ] Structured logging and optional fields
-- [x] Support Linux
-- [x] Support OSX
-- [x] Support Windows
+- [x] Support Linux, OSX, Windows
+- [x] Functional-tested
 
 .Installation
 [source,bash]

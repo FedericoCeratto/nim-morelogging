@@ -8,8 +8,7 @@
 ## If buffer_size is positive, messages are buffered internally up to writeout_interval_ms
 ## Messages with level >= flush_threshold are flushed out immediately.
 
-from logging import addHandler, Level, LevelNames, Logger, defaultFilename, defaultFmtStr
-from logging import info, debug
+from logging import Level, LevelNames, Logger
 from posix import gethostname
 import asyncdispatch,
   memfiles,
@@ -635,22 +634,22 @@ when defined(Posix) and defined(systemd):
     if level >= self.level_threshold:
       let msg = self.format_msg(self.fmtStr, level, args)
 
-  proc fatal*(self: JournaldLogger, msg: string, a: openarray[(string, string)]) =
+  proc fatal*(self: JournaldLogger, msg: string, a: openarray[(string, string)]=[]) =
     self.structlog(lvlFatal, msg, a)
 
-  proc error*(self: JournaldLogger, msg: string, a: openarray[(string, string)]) =
+  proc error*(self: JournaldLogger, msg: string, a: openarray[(string, string)]=[]) =
     self.structlog(lvlError, msg, a)
 
-  proc warn*(self: JournaldLogger, msg: string, a: openarray[(string, string)]) =
+  proc warn*(self: JournaldLogger, msg: string, a: openarray[(string, string)]=[]) =
     self.structlog(lvlWarn, msg, a)
 
-  proc notice*(self: JournaldLogger, msg: string, a: openarray[(string, string)]) =
+  proc notice*(self: JournaldLogger, msg: string, a: openarray[(string, string)]=[]) =
     self.structlog(lvlNotice, msg, a)
 
-  proc info*(self: JournaldLogger, msg: string, a: openarray[(string, string)]) =
+  proc info*(self: JournaldLogger, msg: string, a: openarray[(string, string)]=[]) =
     self.structlog(lvlInfo, msg, a)
 
-  proc debug*(self: JournaldLogger, msg: string, a: openarray[(string, string)]) =
+  proc debug*(self: JournaldLogger, msg: string, a: openarray[(string, string)]=[]) =
     self.structlog(lvlDebug, msg, a)
 
   proc newJournaldLogger*(
