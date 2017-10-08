@@ -555,7 +555,9 @@ when compileOption("threads"):
 when defined(Posix) and defined(systemd):
 
   import tables
-  from system import getFrame
+
+  when (compileOption("lineTrace") and compileOption("stackTrace")) or not defined(release):
+    from system import getFrame
 
   {.hint: "Systemd Journald enabled".}
   # Use systemd libraries
@@ -579,13 +581,14 @@ when defined(Posix) and defined(systemd):
       let item = uk & "=" & v
       chunks.add item
 
-    let frame = getFrame().prev.prev.prev
-    if not f.hasKey "CODE_FILE":
-      chunks.add "CODE_FILE=" & $frame.filename
-    if not f.hasKey "CODE_FUNC":
-      chunks.add "CODE_FUNC=" & $frame.procname
-    if not f.hasKey "CODE_LINE":
-      chunks.add "CODE_LINE=" & $frame.line
+    when (compileOption("lineTrace") and compileOption("stackTrace")) or not defined(release):
+      let frame = getFrame().prev.prev.prev
+      if not f.hasKey "CODE_FILE":
+        chunks.add "CODE_FILE=" & $frame.filename
+      if not f.hasKey "CODE_FUNC":
+        chunks.add "CODE_FUNC=" & $frame.procname
+      if not f.hasKey "CODE_LINE":
+        chunks.add "CODE_LINE=" & $frame.line
 
     # TODO: replace with macro + template
     var rc: cint
@@ -660,6 +663,8 @@ when defined(Posix) and defined(systemd):
     new(result)
     result.fmtStr = fmtStr
     result.level_threshold = level_threshold
+    when defined(release) and not compileOption("lineTrace") and not compileOption("stackTrace"):
+      {.warning: "--lineTrace:on and --stackTrace:on are needed by JournaldLogger to fill CODE_FILE/CODE_FUNC/CODE_LINE".}
 
   proc close*(self: JournaldLogger) =
     ## Close JournaldLogger: do nothing, the logger will keep working after closing

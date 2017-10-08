@@ -122,6 +122,8 @@ Journald supports logging user-defined key-value pairs and provides fast indexin
 
 Enable with -d:systemd
 
+Note: '--stackTrace:on' and '--lineTrace:on' are needed by JournaldLogger to fill CODE_FILE/CODE_FUNC/CODE_LINE automatically when building in release mode.
+
 .Usage:
 [source,nim]
 ----
