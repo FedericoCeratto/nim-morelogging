@@ -122,8 +122,6 @@ Journald supports logging user-defined key-value pairs and provides fast indexin
 
 Enable with -d:systemd
 
-Note: '--stackTrace:on' and '--lineTrace:on' are needed by JournaldLogger to fill CODE_FILE/CODE_FUNC/CODE_LINE automatically when building in release mode.
-
 .Usage:
 [source,nim]
 ----
@@ -134,6 +132,9 @@ log.info("hello world", {"key_1": "value_1"})
 Keys are converted to uppercase. They can contain underscores but not as the first character.
 
 JournaldLogger will automatically add CODE_FILE, CODE_FUNC, CODE_LINE keys to show the filename, function and line number that generated the log message.
+
+Note: '--stackTrace:on' and '--lineTrace:on' are required when building in release mode to enable this feature.
+
 
 You can override them by passing the keys in uppercase with your own values.
 
