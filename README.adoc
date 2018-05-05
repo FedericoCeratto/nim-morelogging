@@ -2,11 +2,10 @@
 
 A set of logging utilities for Nim.
 
-CAUTION: The library is in alpha stage.
-
 image:https://img.shields.io/badge/status-alpha-orange.svg[badge]
 image:https://circleci.com/gh/FedericoCeratto/nim-morelogging.svg?style=svg["CircleCI", link="https://circleci.com/gh/FedericoCeratto/nim-morelogging"]
 image:https://ci.appveyor.com/api/projects/status/github/FedericoCeratto/nim-morelogging?svg=true[Appveyor, link="https://ci.appveyor.com/project/FedericoCeratto/nim-morelogging"]
+image:https://img.shields.io/github/release/FedericoCeratto/nim-morelogging.svg[release]
 
 .Features:
 [none]
