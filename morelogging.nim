@@ -81,7 +81,7 @@ proc get_hostname(): string =
     const size = 64
     var hostname = cstring(newString(size))
     let success = getHostname(hostname, size)
-    if success != 0.cint or hostname == nil:
+    if success != 0.cint or hostname == "":
       raiseOSError(osLastError())
     return $hostname
   else:
@@ -317,7 +317,7 @@ proc rotate(self: AsyncRotatingFileLogger, now: Time) =
   if self.f != nil:
     self.f.close()
 
-  if self.compress and self.log_filename != nil:
+  if self.compress and self.log_filename != "":
     self.log_filename.compress_file()
 
   self.log_filename = generate_log_file_name(self.log_filename_tpl, now)
@@ -505,7 +505,7 @@ when compileOption("threads"):
     if self.f != nil:
       self.f.close()
 
-    if self.compress and self.log_filename != nil:
+    if self.compress and self.log_filename != "":
       self.log_filename.compress_file()
 
     self.log_filename = generate_log_file_name(self.log_filename_tpl, now)

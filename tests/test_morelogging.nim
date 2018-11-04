@@ -157,9 +157,9 @@ suite "functional tests - async":
       )
       log.error("log.2 file")
       # Wait for 1s to allow rotation
-      waitFor sleepAsync(1000)
+      waitFor sleepAsync(1100)
       log.error("log.1 file")
-      waitFor sleepAsync(1000)
+      waitFor sleepAsync(1100)
 
     cleanup_compile_and_run()
     let l = "tmpdir/test.log".readFile().splitLines()
@@ -186,11 +186,11 @@ suite "functional tests - async":
         writeout_interval_ms=100
       )
       log.error("first file")
-      waitFor sleepAsync(1000)
+      waitFor sleepAsync(1100)
       log.error("second file")
-      waitFor sleepAsync(1000)
+      waitFor sleepAsync(1100)
       log.error("third file")
-      waitFor sleepAsync(1000)
+      waitFor sleepAsync(1100)
 
     cleanup_compile_and_run()
     let l = "tmpdir/test.log".readFile().splitLines()
