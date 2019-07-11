@@ -15,7 +15,7 @@ import asyncdispatch,
   os,
   strutils,
   times,
-  zip.zlib
+  zip/zlib
 
 # Base class
 
@@ -102,7 +102,7 @@ proc generate_log_file_name(tpl: string, current_time: Time): string =
   ## $hostname  hostname
   ## $appname   application name
   ##
-  let ts = current_time.getGMTime()
+  let ts = current_time.utc()
   let appname = os.getAppFilename().splitFile()[1]
   result = tpl
     .replace("$y", ts.format("yyyy"))
@@ -184,27 +184,27 @@ proc log(self: AsyncFileLogger, level: Level, args: varargs[string, `$`]) {.
       self.f.write(msg & "\n")
 
 method fatal*(self: AsyncFileLogger, args: varargs[string, `$`])
-    {.tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    {.base, tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
   self.log(lvlFatal, args)
 
 method error*(self: AsyncFileLogger, args: varargs[string, `$`])
-    {.tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    {.base, tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
   self.log(lvlError, args)
 
 method warn*(self: AsyncFileLogger, args: varargs[string, `$`])
-    {.tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    {.base, tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
   self.log(lvlWarn, args)
 
 method notice*(self: AsyncFileLogger, args: varargs[string, `$`])
-    {.tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    {.base, tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
   self.log(lvlNotice, args)
 
 method info*(self: AsyncFileLogger, args: varargs[string, `$`])
-    {.tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    {.base, tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
   self.log(lvlInfo, args)
 
 method debug*(self: AsyncFileLogger, args: varargs[string, `$`])
-    {.tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+    {.base, tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
   self.log(lvlDebug, args)
 
 
@@ -254,7 +254,6 @@ proc recursive_rename(fname: string, max_renames=14) =
 
 proc compress_file(src_fname: string) =
   ## Compress file to a .gz file, recursively rename previous files
-  let t0 = epochTime()
   let compressed_fname = "$#.gz" % src_fname
   recursive_rename(compressed_fname)
   var src: MemFile
@@ -269,8 +268,9 @@ proc compress_file(src_fname: string) =
   discard dst.gzclose()
   removeFile(src_fname)
 
-proc pick_rotation_time(now: Time, rotate_interval: string): TimeInfo =
+proc pick_rotation_time(now: Time, rotate_interval: string): DateTime =
   ## Pick a time for the next file rotation
+  let now = now.utc()
   var
     selector: char
     timeval: int
@@ -281,26 +281,17 @@ proc pick_rotation_time(now: Time, rotate_interval: string): TimeInfo =
   except:
     raise newException(ValueError, "rotate_interval must be <numbers>[dhms]")
 
-  var rotation_time = now.getGMTime()
   case selector
   of 'd':
-    rotation_time.monthday += (timeval - rotation_time.monthday mod timeval)
-    rotation_time.hour = 0
-    rotation_time.minute = 0
-    rotation_time.second = 0
+    return now + timeval.days
   of 'h':
-    rotation_time.hour += (timeval - rotation_time.hour mod timeval)
-    rotation_time.minute = 0
-    rotation_time.second = 0
+    return now + timeval.hours
   of 'm':
-    rotation_time.minute += (timeval - rotation_time.minute mod timeval)
-    rotation_time.second = 0
+    return now + timeval.minutes
   of 's':
-    rotation_time.second += (timeval - rotation_time.second mod timeval)
+    return now + timeval.seconds
   else:
-    raise newException(ValueError, "rotate_interval must be <numbers>[Mdhms]")
-
-  return rotation_time
+    raise newException(ValueError, "rotate_interval must be <numbers>[dhms]")
 
 
 # AsyncRotatingFileLogger
@@ -308,7 +299,7 @@ proc pick_rotation_time(now: Time, rotate_interval: string): TimeInfo =
 type
   AsyncRotatingFileLogger* = ref object of AsyncFileLogger
     compress: bool
-    next_rotation_time: TimeInfo
+    next_rotation_time: DateTime
     rotate_interval: string
 
 proc rotate(self: AsyncRotatingFileLogger, now: Time) =
@@ -334,7 +325,7 @@ proc run_writeout_worker(self: AsyncRotatingFileLogger) {.async.} =
   ## Perform log rotation and write out log messages
   while true:
     let now = getTime()
-    if self.next_rotation_time.timeInfoToTime() <= now:
+    if self.next_rotation_time <= now.utc:
       self.rotate(now)
 
     if self.buffer_size != 0:
@@ -390,7 +381,7 @@ when compileOption("threads"):
 
     ThreadRotatingFileLogger* = ref object of ThreadFileLogger
       compress: bool
-      next_rotation_time: TimeInfo
+      next_rotation_time: Time
       rotate_interval: string
 
   proc do_flush_buffer_cycle(self: ThreadFileLogger, n: int, pchan: PChan): int =
@@ -516,7 +507,7 @@ when compileOption("threads"):
     ## Perform log rotation and write out log messages
     while true:
       let now = getTime()
-      if self.next_rotation_time.timeInfoToTime() <= now:
+      if self.next_rotation_time <= now:
         self.rotate(now)
 
       if self.buffer_size != 0:

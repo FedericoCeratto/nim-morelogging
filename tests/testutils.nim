@@ -21,7 +21,7 @@ proc toSeq[T](a: set[T]): seq[T] {.inline.} =
 const letters = Letters.toSeq
 
 
-template with_temp_dir*(tempdir_name: untyped, tpl: string, body: untyped): untyped {.immediate.} =
+template with_temp_dir*(tempdir_name: untyped, tpl: string, body: untyped): untyped =
   ## Create a temporary directory and remove it after executing code successfully
   ## The templating string supports the following keywords:
   ##   $appfn: application filename
