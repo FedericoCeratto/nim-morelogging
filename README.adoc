@@ -2,9 +2,11 @@
 
 A set of logging utilities for Nim.
 
-image:https://img.shields.io/badge/status-alpha-orange.svg[badge]
+image:https://img.shields.io/badge/status-beta-orange.svg[badge]
 image:https://circleci.com/gh/FedericoCeratto/nim-morelogging.svg?style=svg["CircleCI", link="https://circleci.com/gh/FedericoCeratto/nim-morelogging"]
 image:https://ci.appveyor.com/api/projects/status/github/FedericoCeratto/nim-morelogging?svg=true[Appveyor, link="https://ci.appveyor.com/project/FedericoCeratto/nim-morelogging"]
+image:https://img.shields.io/github/tag/FedericoCeratto/nim-morelogging.svg[tags]
+image:https://img.shields.io/badge/License-LGPL%20v3-blue.svg[License]
 
 .Features:
 [none]
@@ -15,14 +17,16 @@ image:https://ci.appveyor.com/api/projects/status/github/FedericoCeratto/nim-mor
 - [x] Threaded log buffering
 - [x] Async log buffering
 - [x] Logging, file rotation and compression do not block the caller
-- [ ] Do not crash the application on write failure (e.g. broken or full disk, permission errors) - switch to logging to stderr
 - [x] Sensible defaults: log to "<appname>.<date>.log", daily log rotation
-- [ ] Rotate logfile on SIGHUP signal
-- [ ] Logging hierarchy
 - [x] Log to systemd Journald. Support structured entries.
-- [ ] Structured logging and optional fields
 - [x] Support Linux, OSX, Windows
 - [x] Functional-tested
+
+.Roadmap:
+- [ ] Logging hierarchy
+- [ ] Do not crash the application on write failure (e.g. broken or full disk, permission errors) - switch to logging to stderr
+- [ ] Rotate logfile on SIGHUP signal
+- [ ] Structured logging and optional fields
 
 .Installation
 [source,bash]
