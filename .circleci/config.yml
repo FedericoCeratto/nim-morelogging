@@ -4,25 +4,19 @@ jobs:
     docker:
       - image: nimlang/nim
     steps:
-      - run: echo 'export PATH=~/.nimble/bin:$PATH' >> $BASH_ENV
       - checkout
-      # Reuse cached Nim compiler
-      - restore_cache:
-          key: cache-0001
       - run:
           command: |
             nimble install zip -y
-      - save_cache:
-          key: cache-0001
-          paths:
-            - ~/.nimble
-            - ~/.choosenim
-      - run:
-          command: |
-            nim c -p:. -r tests/test_morelogging.nim
-            #LD_LIBRARY_PATH=/usr/local/lib ./test_sodium
-      - store_artifacts:
-          path: test-reports/
-          destination: tr1
-      - store_test_results:
-          path: test-reports/
+            wget https://ooni-data.s3.amazonaws.com/autoclaved/jsonl.tar.lz4/2019-07-20/20190720T013740Z-AR-AS16814-web_connectivity-20190720T013741Z_AS16814_MW5maiQ4Y79mep6uKi9mu0TGM7RreZ2SKs9ep0hZ5IOdrfXh7f-0.2.0-probe.json.lz4 -O j.lz4
+            apt-get install -y liblz4-tool python-ujson
+            time lz4cat j.lz4 > j
+            echo bench python
+            python -m timeit -s "import ujson;j=open('j').readlines()" "[len(ujson.loads(l)) for l in j]"
+            echo bench NIm
+            nim c -d:danger --hints:off -r t.nim
+            ./t
+            ./t
+            ./t
+            ./t
+
