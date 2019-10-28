@@ -31,6 +31,8 @@ type
     writeout_interval_ms*: int
     buffer_size: int
 
+  StdoutLogger* = ref object of AugmentedLogger
+
 # Logging utility functions
 
 proc format_msg(self: AugmentedLogger, frmt: string, level: Level, args: varargs[string, `$`]): string =
@@ -134,6 +136,45 @@ proc run_writeout_worker(self: AsyncFileLogger) {.async.} =
   while true:
     self.flush_buffer()
     await sleepAsync(self.writeout_interval_ms)
+
+proc newStdoutLogger*(level_threshold = lvlAll, fmtStr="$datetime $levelname "): StdoutLogger =
+  ## Creates a Stdout logger
+  new result
+  result.fmtStr = fmtStr
+  result.level_threshold = level_threshold
+
+proc log(self: StdoutLogger, level: Level, args: varargs[string, `$`]) {.
+            raises: [Exception],
+            tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+  ## Format and write log message out if the level is above theshold
+  if level < self.level_threshold:
+    return
+  echo self.format_msg(self.fmtStr, level, args)
+
+method fatal*(self: StdoutLogger, args: varargs[string, `$`])
+    {.base, tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+  self.log(lvlFatal, args)
+
+method error*(self: StdoutLogger, args: varargs[string, `$`])
+    {.base, tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+  self.log(lvlError, args)
+
+method warn*(self: StdoutLogger, args: varargs[string, `$`])
+    {.base, tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+  self.log(lvlWarn, args)
+
+method notice*(self: StdoutLogger, args: varargs[string, `$`])
+    {.base, tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+  self.log(lvlNotice, args)
+
+method info*(self: StdoutLogger, args: varargs[string, `$`])
+    {.base, tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+  self.log(lvlInfo, args)
+
+method debug*(self: StdoutLogger, args: varargs[string, `$`])
+    {.base, tags: [TimeEffect, WriteIOEffect, ReadIOEffect].} =
+  self.log(lvlDebug, args)
+
 
 proc newAsyncFileLogger*(
     filename_tpl = "$app.$y$MM$dd.log",

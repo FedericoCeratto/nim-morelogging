@@ -118,7 +118,7 @@ The following formatters are supported:
   $hostname  hostname
   $appname   application name
 
-=== Systemd's Journald logger
+=== Systemd's Journald logger (recommended)
 
 Journald supports logging user-defined key-value pairs and provides fast indexing.
 
@@ -160,3 +160,14 @@ sudo journalctl -e -o json-pretty KEY_1=value_1 -n1 --no-pager
 }
 ----
 
+=== Stdout logger
+
+Useful mostly for debugging.
+
+.Usage:
+[source,nim]
+----
+import morelogging
+let log = newStdoutLogger(fmtStr="$time ")
+log.info("hello world")
+----
