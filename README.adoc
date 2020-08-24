@@ -171,3 +171,16 @@ import morelogging
 let log = newStdoutLogger(fmtStr="$time ")
 log.info("hello world")
 ----
+
+=== Development with Docker
+
+You can easily run tests if you have 'docker' and 'docker-compose'.
+You don't have to setup dependencies (libsystemd-dev) on your host PC.
+
+To get up and running:
+
+```bash
+cd docker
+docker-compose build
+docker-compose up
+```

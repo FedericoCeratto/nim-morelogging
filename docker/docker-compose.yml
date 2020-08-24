@@ -1,0 +1,10 @@
+version: "3.7"
+
+services:
+  morelogging:
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile
+    volumes:
+      - "../:/app"
+    entrypoint: nim c -p:. -r tests/test_morelogging.nim
