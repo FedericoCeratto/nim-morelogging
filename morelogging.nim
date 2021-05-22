@@ -305,7 +305,7 @@ proc compress_file(src_fname: string) =
     return
 
   let dst = gzopen(compressed_fname, "w")
-  discard zlib.gzwrite(dst, src.mem, src.size)
+  discard zlib.gzwrite(dst, src.mem, src.size.cuint)
   discard dst.gzclose()
   removeFile(src_fname)
 
@@ -422,7 +422,7 @@ when compileOption("threads"):
 
     ThreadRotatingFileLogger* = ref object of ThreadFileLogger
       compress: bool
-      next_rotation_time: Time
+      next_rotation_time: DateTime
       rotate_interval: string
 
   proc do_flush_buffer_cycle(self: ThreadFileLogger, n: int, pchan: PChan): int =
@@ -548,7 +548,7 @@ when compileOption("threads"):
     ## Perform log rotation and write out log messages
     while true:
       let now = getTime()
-      if self.next_rotation_time <= now:
+      if self.next_rotation_time <= now.utc:
         self.rotate(now)
 
       if self.buffer_size != 0:
