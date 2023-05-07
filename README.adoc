@@ -3,8 +3,6 @@
 A set of logging utilities for Nim.
 
 image:https://img.shields.io/badge/status-beta-orange.svg[badge]
-image:https://circleci.com/gh/FedericoCeratto/nim-morelogging.svg?style=svg["CircleCI", link="https://circleci.com/gh/FedericoCeratto/nim-morelogging"]
-image:https://ci.appveyor.com/api/projects/status/github/FedericoCeratto/nim-morelogging?svg=true[Appveyor, link="https://ci.appveyor.com/project/FedericoCeratto/nim-morelogging"]
 image:https://img.shields.io/github/tag/FedericoCeratto/nim-morelogging.svg[tags]
 image:https://img.shields.io/badge/License-LGPL%20v3-blue.svg[License]
 
@@ -40,7 +38,7 @@ $ nimble install morelogging
 .Usage
 [source,nim]
 ----
-import morelogging as log
+import morelogging
 
 let log = newAsyncFileLogger()
 log.debug("debug")
